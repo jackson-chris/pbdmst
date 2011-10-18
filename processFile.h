@@ -36,6 +36,7 @@ void processFile::processFileOld(Graph *g, ifstream &inFile) {
     double cost;
     //  Create each vertex after getting vertex count
     inFile >> vCount;
+    g->setEList(vCount);
 	cout << vCount << endl;
     for(int i = 1; i <= vCount; i++) {
         g->insertVertex(i);
@@ -57,6 +58,7 @@ void processFile::processEFile(Graph *g, ifstream &inFile) {
     int eCount, vCount;
     //  Create each vertex after getting vertex count
     inFile >> vCount;
+    g->setEList(vCount);
 	cout << vCount << endl;
     for(int i = 1; i <= vCount; i++) {
     	inFile >> x >> y;
@@ -82,6 +84,7 @@ void processFile::processRFile(Graph *g, ifstream &inFile) {
     int eCount, vCount;
     //  Create each vertex after getting vertex count
     inFile >> vCount;
+    g->setEList(vCount);
 	cout << vCount << endl;
     for(int i = 1; i <= vCount; i++) {
         g->insertVertex(i);

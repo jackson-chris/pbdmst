@@ -68,6 +68,7 @@ class Edge {
 public:
     Vertex *a;
     Vertex *b;
+    int id;
     double pUpdatesNeeded;
     bool inTree;
     bool usable;
@@ -94,7 +95,9 @@ public:
     int root;
     int oddRoot;
     int height;
+    int eCount;
     Vertex *first;
+    Edge* *eList;
     Vertex* nodes[1001];
     vector<Vertex*> **vDepths;
     Graph();
@@ -115,6 +118,7 @@ public:
     Vertex* BFS_2(Vertex* pVert);
     int testDiameter();
 	bool isConnected();
+	void setEList(int);
 
 };
 

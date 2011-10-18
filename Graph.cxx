@@ -65,6 +65,7 @@ void Vertex::updateVerticeWeight() {
 Graph::Graph() {
     numNodes = 0;
     root = 0;
+    eCount = 0;
     height = 0;
     oddRoot = -1;
     first = NULL;
@@ -76,7 +77,8 @@ Graph::Graph() {
 Graph::~Graph() {
     for( int i =0 ; i < 50 ; i++ )
         delete vDepths[i];
-    delete []vDepths;
+    delete [] vDepths;
+    delete [] eList;
 }
 
 Vertex* Graph::getFirst() {
@@ -233,6 +235,7 @@ int Graph::insertEdge(int fromKey, int toKey, double weight, double level) {
     Vertex *vertToPtr;
     
     newPtr = new Edge;
+    newPtr->id = eCount++;
     newPtr->weight = weight;
     newPtr->pLevel = level;
     newPtr->usable = true;
@@ -264,6 +267,8 @@ int Graph::insertEdge(int fromKey, int toKey, double weight, double level) {
     //  Add edges to each adjacency list
     vertToPtr->edges.push_back(newPtr);
     vertFromPtr->edges.push_back(newPtr);
+    //  Add edge to eList
+    eList[newPtr->id] = newPtr;
     return 1;
 }
 
@@ -300,6 +305,7 @@ double Graph::insertEdge(int fromKey, int toKey) {
     weight = sqrt((((vertFromPtr->x_coord - vertToPtr->x_coord) * (vertFromPtr->x_coord - vertToPtr->x_coord)) 
         + ((vertFromPtr->y_coord - vertToPtr->y_coord) * (vertFromPtr->y_coord - vertToPtr->y_coord))));
     newPtr->weight = weight;
+    newPtr->id = eCount++;
     ++vertFromPtr->degree;
     ++vertToPtr->degree;
     newPtr->b=vertToPtr;
@@ -307,6 +313,8 @@ double Graph::insertEdge(int fromKey, int toKey) {
     //  Add edges to each adjacency list
     vertToPtr->edges.push_back(newPtr);
     vertFromPtr->edges.push_back(newPtr);
+    //  Add edge to eList
+    eList[newPtr->id] = newPtr;
     return weight;
 }
 
@@ -493,4 +501,9 @@ bool Graph::isConnected() {
         vertWalkPtr = vertWalkPtr->pNextVert;
     }
     return connected;
+}
+
+void Graph::setEList(int c) {
+    //  This function will create the edge list array.
+    eList = new Edge*[(c*(c-1))/2];
 }

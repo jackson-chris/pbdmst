@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <vector>
 #include "mersenne.cxx"
+#include "mpi.h"
 
 //  Variables for proportional selection
 int32 seed = time(0), rand_pher;
@@ -168,10 +169,6 @@ void compute(Graph* g, int d, processFile p, int i) {
     }
     cout << "Instance number: " << i << endl;
     vector<Edge*> best = AB_DBMST(g, d);
-    //cout << "Size of best: " << best.size() << endl;
-    //sort(best.begin(), best.end(), asc_src);
-    //cout << "Best Tree num edges: " << best.size() << endl;
-    //for_each(best.begin(), best.end(), printEdge);
 }
 
 /*
@@ -313,9 +310,7 @@ vector<Edge*> AB_DBMST(Graph *g, int d) {
         totalCycles++;
         cycles++;
         treeCost = 0;
-    }    
-    //  RUN FIRST LOCAL OPT
-    
+    }
     Graph* gTest = new Graph();
     //  add all vertices
     Vertex* pVert = g->getFirst();
@@ -946,3 +941,16 @@ void move(Graph *g, Ant *a) {
     }
 }
 
+void packPheromones(Graph *g, double *n) {
+    Vertex *vWalk = g->first;
+    Edge *eWalk;
+    vector<Edge*>::iterator iEdge;
+    unsigned int i = 0;
+    while(vWalk) {
+        for(iEdge = vWalk->edges.begin(); iEdge < vWalk->edges.end(); iEdge++) {
+            eWalk = *iEdge;
+            n[i++] = eWalk->pLevel;
+        }
+        vWalk = vWalk->pNextVert;
+    }
+}
