@@ -11,11 +11,6 @@
 // Author: Christopher Lee Jackson & Jason Jones
 // Description: This is our implementation of our ant based algorithm to aproximate the BDMST problem.
 
-// TO DO:
-// - need to figure out how to pass arguments from main() to MPI since MPI_Init() requires
-//   the command line parameters
-
-
 #include <iostream>
 #include <iomanip>
 #include <fstream>
@@ -1015,15 +1010,47 @@ void move(Graph *g, Ant *a) {
 }
 
 void packPheromones(Graph *g, double *n) {
-    Vertex *vWalk = g->first;
-    Edge *eWalk;
-    vector<Edge*>::iterator iEdge;
-    unsigned int i = 0;
-    while(vWalk) {
-        for(iEdge = vWalk->edges.begin(); iEdge < vWalk->edges.end(); iEdge++) {
-            eWalk = *iEdge;
-            n[i++] = eWalk->pLevel;
-        }
-        vWalk = vWalk->pNextVert;
+  vertex *vWalk = g->first;
+  vector<Edge*>::iterator iEdge;
+  Edge *eWalk;
+  unsigned int i = 0;
+  while(vWalk != NULL) {
+    for(iEdge = vWalk->edges.begin(), i = 0;
+        iEdge < vWalk->edges.end();
+        iEdge++, i++) {
+      eWalk = *iEdge;
+      n[i] = eWalk->pLevel;
     }
+    vWalk = vWalk->pNextVert;
+  }
+}
+
+void unpackPheromones(Graph *g, double *n) {
+  vertex *vWalk = g->first;
+  vector<Edge*>::iterator iEdge;
+  Edge *eWalk;
+  unsigned int i = 0;
+  while(vWalk != NULL) {
+    for(iEdge = vWalk->edges.begin(), i = 0;
+        iEdge < vWalk->edges.end();
+        iEdge++, i++) {
+      eWalk = *iEdge;
+      eWalk->pLevel = n[i];
+    }
+    vWalk = vWalk->pNextVert;
+  }
+}
+
+void packTree(vector<Edge*>& v, int *n) {
+  vector<Edge*>::iterator iEdge;
+  unsigned int i = 0;
+  for(iEdge = v.begin(); iEdge < v.end(); iEdge++, i++)
+    n[i] = (*iEdge)->id;
+}
+
+void unpackTree(Graph *g, int *n, vector<Edge*>& v, int size) {
+  int i;
+  v.clear();
+  for(i = 0; i < size; i++)
+    v.push_back(g->eList[n[i]]);
 }

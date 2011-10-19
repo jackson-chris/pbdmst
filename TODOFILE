@@ -1,0 +1,3 @@
+Remove when solved
+- pass the main command line arguments; MPI requires argc and argv in MPI_Init()
+- packPheromones() as it stands will write edges twice, one for each side of the edge
