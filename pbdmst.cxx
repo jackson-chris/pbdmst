@@ -223,10 +223,6 @@ vector<Edge*> AB_DBMST(Graph *g, int d) {
     vector<Ant*> ants;
     vector<Edge*>::iterator e, ed, iedge1;
     vector<Range> *temp;
-    int mpiRank;
-    int mpiSize;
-    int mpiRoot;
-    int mpiNewRoot;
     double *mpiBest;
 
     // Clear ranges
@@ -245,6 +241,12 @@ vector<Edge*> AB_DBMST(Graph *g, int d) {
         ants.push_back(a);
         // Create a range for this vertex
         temp = new vector<Range>();
+	/*
+	  ?2? if this is happening for every vertex, doesn't that mean
+	  that the edges are getting set twice? (once for a-b, once for
+	  b-a) could ranges just be put into the graph and initialized
+	  when the graph is created?
+	*/
         // Initialize pheremone level of each edge, and set pUdatesNeeded to zero
         for ( e = vertWalkPtr->edges.begin() ; e < vertWalkPtr->edges.end(); e++ ) {
             edgeWalkPtr = *e;
@@ -267,7 +269,8 @@ vector<Edge*> AB_DBMST(Graph *g, int d) {
         vertWalkPtr->updateVerticeWeight();
         vertWalkPtr = vertWalkPtr->pNextVert;
     }
-    while (totalCycles <= 10000 && cycles <= MAX_CYCLES) {
+    // changed to run full duration every time
+    while (totalCycles <= 10000 /*&& cycles <= MAX_CYCLES*/) {
         //if(totalCycles % 25 == 0)
         //cerr << "CYCLE " << totalCycles << endl;
         // Exploration Stage
@@ -374,6 +377,8 @@ vector<Edge*> AB_DBMST(Graph *g, int d) {
 		MPI_Recv(&treeArray, treeSize, MPI_INT, mpiRoot, mpiTreeTag, MPI_COMM_WORLD, &mpiStatus);
 		unpackTree(g, treeArray, best, g->count - 1);
 	    }
+	    // need to update ranges to match new pheromones
+	    updateRanges(g);
         } 
         totalCycles++;
         cycles++;
