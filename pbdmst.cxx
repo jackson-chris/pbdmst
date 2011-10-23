@@ -56,9 +56,6 @@ const int MAX_CYCLES = 2500; // change back to 2500
 const int ONE_EDGE_OPT_BOUND = 500; // was 500
 const int ONE_EDGE_OPT_MAX = 2500;
 const int K = 250;
-const int mpiRootTag = 1;
-const int mpiRootPassTag = 2;
-const int mpiPhTag = 3;
 
 int instance = 0;
 double loopCount = 0;
@@ -66,9 +63,26 @@ double evap_factor = .65;
 double enha_factor = 1.5;
 double maxCost = 0;
 double minCost = std::numeric_limits<double>::infinity();
-
 vector< vector<Range>* > vert_ranges;
 double cost;
+
+// MPI specific constants, variables, and functions
+const int MPI_ROOT_TAG = 1;
+const int MPI_ROOT_PASS_TAG = 2;
+const int MPI_PH_TAG = 3;
+const int MPI_TREE_TAG = 4;
+const int MPI_DUMMY_TAG = 5;
+MPI_Status mpiStatus;
+int mpiRank;
+int mpiSize;
+int mpiRoot;
+int mpiNewRoot;
+int mpiDummyVar = 0;
+int mpiMinCost(double *vals, int nProcesses);
+void packTree(vector<Edge*>& v, int *n);
+void unpackTree(Graph *g, int *n, vector<Edge*>& v, int size);
+void packPheromones(Graph *g, double *n);
+void unpackPheromones(Graph *g, double *n);
 
 /*// Variables for proportional selection
 int32 seed = time(0), rand_pher;
@@ -109,6 +123,9 @@ int main( int argc, char *argv[]) {
         cerr << " diameter_bound: an integer i, s.t. 4 <= i < |v| \n";
         return 1;
     }
+    MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &mpiRank);
+    MPI_Comm_size(MPI_COMM_WORLD, &mpiSize);
     char* fileName = new char[50];
     char* fileType = new char[2];
     int numInst = 0;
@@ -117,6 +134,10 @@ int main( int argc, char *argv[]) {
     int d;
     d = atoi(argv[3]);
     processFile p;
+    // ?01?
+    if(mpiRank > 0)
+	MPI_Recv(&mpiDummyVar, 1, MPI_INT, mpiRank - 1, MPI_DUMMY_TAG,
+		 MPI_COMM_WORLD, &mpiStatus);
     // Open file for reading
     ifstream inFile;
     inFile.open(fileName);
@@ -137,6 +158,11 @@ int main( int argc, char *argv[]) {
             //cout << "Instance num: " << i+1 << endl;
             g = new Graph();
             p.processEFile(g, inFile);
+	    inFile.close();
+	    // ?01?
+	    if(mpiRank < mpiSize - 1)
+		MPI_Send(&mpiDummyVar, 1, MPI_INT, mpiRank + 1,
+			 MPI_DUMMY_TAG, MPI_COMM_WORLD);
             instance++;
             compute(g, d, p, i);
             resetItems(g, p);
@@ -149,6 +175,11 @@ int main( int argc, char *argv[]) {
             //cout << "Instance num: " << i+1 << endl;
             g = new Graph();
             p.processRFile(g, inFile);
+	    inFile.close();
+	    // ?01?
+	    if(mpiRank < mpiSize - 1)
+		MPI_Send(&mpiDummyVar, 1, MPI_INT, mpiRank + 1,
+			 MPI_DUMMY_TAG, MPI_COMM_WORLD);
             compute(g, d, p, i);
             resetItems(g, p);
         }
@@ -157,10 +188,15 @@ int main( int argc, char *argv[]) {
         //cout << "USING o file type" << endl;
         g = new Graph();
         p.processFileOld(g, inFile);
+	inFile.close();
+	// ?01?
+	if(mpiRank < mpiSize - 1)
+	    MPI_Send(&mpiDummyVar, 1, MPI_INT, mpiRank + 1,
+		     MPI_DUMMY_TAG, MPI_COMM_WORLD);
         compute(g, d, p, 0);
     }
-    delete fileName;
-    delete fileType;
+    delete[] fileName;
+    delete[] fileType;
     return 0;
 }
 
@@ -223,7 +259,10 @@ vector<Edge*> AB_DBMST(Graph *g, int d) {
     vector<Ant*> ants;
     vector<Edge*>::iterator e, ed, iedge1;
     vector<Range> *temp;
-    double *mpiBest;
+
+    double *mpiBest = NULL;
+    mpiBest = new (std::nothrow) double[mpiSize];
+    assert(mpiBest != NULL);
 
     // Clear ranges
     vert_ranges.clear();
@@ -321,60 +360,68 @@ vector<Edge*> AB_DBMST(Graph *g, int d) {
             enha_factor *= P_UPDATE_ENHA;
         }
         if(totalCycles % 2500 == 0) {
+	    int i;
+	    double *phArray;
+	    int *treeArray;
 	    // retrieve costs
-	    MPI_Gather(&bestCost, 1, MPI_DOUBLE, &mpiBest, mpiSize, MPI_DOUBLE, mpiRoot, MPI_COMM_WORLD);
+	    MPI_Gather(&bestCost, 1, MPI_DOUBLE, &mpiBest, mpiSize,
+		       MPI_DOUBLE, mpiRoot, MPI_COMM_WORLD);
 	    // root calculates new root
 	    if(mpiRank == mpiRoot) {
 		mpiNewRoot = mpiMinCost(mpiBest, mpiSize);
 		for(i = 0; i < mpiSize; i++) {
 		    if(i != mpiRank) {
 			// ensures completion
-			MPI_Send(&mpiNewRoot, 1, MPI_INT, i, mpiRootTag, MPI_COMM_WORLD);
-			MPI_Recv(&mpiNewRoot, 1, MPI_INT, i, mpiRootTag, MPI_COMM_WORLD, &mpiStatus);
+			MPI_Send(&mpiNewRoot, 1, MPI_INT, i, MPI_ROOT_TAG,
+				 MPI_COMM_WORLD);
+			MPI_Recv(&mpiDummyVar, 1, MPI_INT, i, MPI_DUMMY_TAG,
+				 MPI_COMM_WORLD, &mpiStatus);
 		    }
 		}
 		// old root done
 		if(mpiRoot != mpiNewRoot)
-		    MPI_Send(&mpiNewRoot, 1, MPI_INT, i, mpiRootPassTag, MPI_COMM_WORLD);                       
+		    MPI_Send(&mpiDummyVar, 1, MPI_INT, mpiNewRoot,
+			     MPI_ROOT_PASS_TAG, MPI_COMM_WORLD);                       
 	    }
 	    // get new root from old
 	    else {
-		MPI_Recv(&mpiRoot, 1, MPI_INT, mpiRoot, mpiRootTag, MPI_COMM_WORLD, &mpiStatus);
-		MPI_Send(&mpiRoot, 1, MPI_INT, mpiRoot, mpiRootTag, MPI_COMM_WORLD);
+		MPI_Recv(&mpiNewRoot, 1, MPI_INT, mpiRoot, MPI_ROOT_TAG,
+			 MPI_COMM_WORLD, &mpiStatus);
+		MPI_Send(&mpiDummyVar, 1, MPI_INT, mpiRoot, MPI_ROOT_TAG,
+			 MPI_COMM_WORLD);
 	    }
-	    // new root sends pheromone data
+	    // changed to send pheromone and tree data all at once to allow
+	    // individual processes to start working sooner
 	    if(mpiRank == mpiNewRoot) {
 		packPheromones(g, phArray);
+		packTree(best, treeArray);
 		// forces new root to wait for old one
 		if(mpiRoot != mpiNewRoot)
-		    MPI_Recv(&mpiNewRoot, 1, MPI_INT, mpiRoot, mpiRootPassTag, MPI_COMM_WORLD, &mpiStatus);
+		    MPI_Recv(&mpiDummyVar, 1, MPI_INT, mpiRoot,
+			     MPI_ROOT_PASS_TAG, MPI_COMM_WORLD, &mpiStatus);
 		mpiRoot = mpiNewRoot;
-		// send pheromone info
+		// send pheromone and tree info
 		for(i = 0; i < mpiSize; i++) {
 		    if(i != mpiRank) {
-			MPI_Send(&phArray, phSize, MPI_DOUBLE, i, mpiPhTag, MPI_COMM_WORLD);
-			MPI_Recv(&mpiRoot, 1, MPI_INT, i, mpiRootTag, MPI_COMM_WORLD, &mpiStatus);
+			MPI_Send(&phArray, phSize, MPI_DOUBLE, i, MPI_PH_TAG,
+				 MPI_COMM_WORLD);
+			MPI_Recv(&mpiRoot, 1, MPI_INT, i, MPI_ROOT_TAG,
+				 MPI_COMM_WORLD, &mpiStatus);
+			MPI_Send(&treeArray, treeSize, MPI_INT, i, MPI_TREE_TAG,
+				 MPI_COMM_WORLD);
 		    }
 		}
 	    }
-	    // get pheromones from new root
+	    // get pheromones and best tree from root
 	    else {
 		mpiRoot = mpiNewRoot;
-		MPI_Recv(&phArray, phSize, MPI_DOUBLE, mpiRoot, mpiPhTag, MPI_COMM_WOLRD, &mpiStatus);
-		MPI_Send(&mpiRoot, 1, MPI_INT, mpiRoot, mpiRootTag, MPI_COMM_WORLD);
+		MPI_Recv(&phArray, phSize, MPI_DOUBLE, mpiRoot, MPI_PH_TAG,
+			 MPI_COMM_WOLRD, &mpiStatus);
+		MPI_Send(&mpiRoot, 1, MPI_INT, mpiRoot, MPI_ROOT_TAG,
+			 MPI_COMM_WORLD);
+		MPI_Recv(&treeArray, treeSize, MPI_INT, mpiRoot, MPI_TREE_TAG,
+			 MPI_COMM_WORLD, &mpiStatus);
 		unpackPheromones(g, phArray);
-	    }
-	    // (new) root sends best tree
-	    if(mpiRank == mpiRoot) {
-		packTree(best, treeArray);
-		for(i = 0; i < mpiSize; i++) {
-		    if(i != mpiRank)
-			MPI_Send(&treeArray, treeSize, MPI_INT, i, mpiTreeTag, MPI_COMM_WORLD);
-		}
-	    }
-	    // get best tree from root
-	    else {
-		MPI_Recv(&treeArray, treeSize, MPI_INT, mpiRoot, mpiTreeTag, MPI_COMM_WORLD, &mpiStatus);
 		unpackTree(g, treeArray, best, g->count - 1);
 	    }
 	    // need to update ranges to match new pheromones
@@ -445,6 +492,7 @@ vector<Edge*> AB_DBMST(Graph *g, int d) {
     current.clear();
     treeCost = 0;
     bestCost = 0;
+    delete[] mpiBest;
     // Return best tree
     return best;
 }
@@ -1015,7 +1063,7 @@ void move(Graph *g, Ant *a) {
 }
 
 void packPheromones(Graph *g, double *n) {
-  vertex *vWalk = g->first;
+  Vertex *vWalk = g->first;
   vector<Edge*>::iterator iEdge;
   Edge *eWalk;
   unsigned int i = 0;

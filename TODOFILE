@@ -1,7 +1,8 @@
 Star when solved, newest on top
-- search "?02?" in pbdmst.cxx: question about how edges are being
+- warning in processFile.h: 58, 84: eCount set but not used
+- search ?02? in pbdmst.cxx: question about how edges are being
   initialized
-- search "?01?" in pbdmst.cxx: can NFS support concurrent reads for
+- search ?01? in pbdmst.cxx: can NFS support concurrent reads for
   initializing the graphs? currently implemented so that each process
   steps through individually
 * pass the main command line arguments; MPI requires argc and argv in
