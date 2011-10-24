@@ -1,1 +1,15 @@
 PBDMST Algorithm.
+
+Star when solved, newest on top
+- warning in processFile.h: 58, 84: eCount set but not used
+- search ?02? in pbdmst.cxx: question about how edges are being
+  initialized
+- search ?01? in pbdmst.cxx: can NFS support concurrent reads for
+  initializing the graphs? currently implemented so that each process
+  steps through individually
+* pass the main command line arguments; MPI requires argc and argv in
+  MPI_Init()
+* change main loop to run to full duration every time so we don't have
+  to worry about processes finishing out of sync
+- packPheromones() as it stands will write edges twice, one for each side
+  of the edge
