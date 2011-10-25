@@ -135,9 +135,9 @@ int main( int argc, char *argv[]) {
     d = atoi(argv[3]);
     processFile p;
     // ?01?
-    if(mpiRank > 0)
-	MPI_Recv(&mpiDummyVar, 1, MPI_INT, mpiRank - 1, MPI_DUMMY_TAG,
-		 MPI_COMM_WORLD, &mpiStatus);
+    //    if(mpiRank > 0)
+    //	MPI_Recv(&mpiDummyVar, 1, MPI_INT, mpiRank - 1, MPI_DUMMY_TAG,
+    //		 MPI_COMM_WORLD, &mpiStatus);
     // Open file for reading
     ifstream inFile;
     inFile.open(fileName);
@@ -160,9 +160,9 @@ int main( int argc, char *argv[]) {
             p.processEFile(g, inFile);
 	    inFile.close();
 	    // ?01?
-	    if(mpiRank < mpiSize - 1)
-		MPI_Send(&mpiDummyVar, 1, MPI_INT, mpiRank + 1,
-			 MPI_DUMMY_TAG, MPI_COMM_WORLD);
+	    //	    if(mpiRank < mpiSize - 1)
+	    //	MPI_Send(&mpiDummyVar, 1, MPI_INT, mpiRank + 1,
+	    //		 MPI_DUMMY_TAG, MPI_COMM_WORLD);
             instance++;
             compute(g, d, p, i);
             resetItems(g, p);
@@ -177,9 +177,9 @@ int main( int argc, char *argv[]) {
             p.processRFile(g, inFile);
 	    inFile.close();
 	    // ?01?
-	    if(mpiRank < mpiSize - 1)
-		MPI_Send(&mpiDummyVar, 1, MPI_INT, mpiRank + 1,
-			 MPI_DUMMY_TAG, MPI_COMM_WORLD);
+	    // if(mpiRank < mpiSize - 1)
+	    ///	MPI_Send(&mpiDummyVar, 1, MPI_INT, mpiRank + 1,
+	    //		 MPI_DUMMY_TAG, MPI_COMM_WORLD);
             compute(g, d, p, i);
             resetItems(g, p);
         }
@@ -190,9 +190,9 @@ int main( int argc, char *argv[]) {
         p.processFileOld(g, inFile);
 	inFile.close();
 	// ?01?
-	if(mpiRank < mpiSize - 1)
-	    MPI_Send(&mpiDummyVar, 1, MPI_INT, mpiRank + 1,
-		     MPI_DUMMY_TAG, MPI_COMM_WORLD);
+	//	if(mpiRank < mpiSize - 1)
+	//  MPI_Send(&mpiDummyVar, 1, MPI_INT, mpiRank + 1,
+	//	     MPI_DUMMY_TAG, MPI_COMM_WORLD);
         compute(g, d, p, 0);
     }
     delete[] fileName;
@@ -363,6 +363,12 @@ vector<Edge*> AB_DBMST(Graph *g, int d) {
 	    int i;
 	    double *phArray;
 	    int *treeArray;
+	    // allocate phArray
+	    int phSize = g->numNodes * (g->numNodes - 1) / 2;
+	    phArray = new double[phSize];
+	    // allocate treeArray
+	    int treeSize = best.size();
+	    treeArray = new int[treeSize];
 	    // retrieve costs
 	    MPI_Gather(&bestCost, 1, MPI_DOUBLE, &mpiBest, mpiSize,
 		       MPI_DOUBLE, mpiRoot, MPI_COMM_WORLD);
@@ -416,13 +422,13 @@ vector<Edge*> AB_DBMST(Graph *g, int d) {
 	    else {
 		mpiRoot = mpiNewRoot;
 		MPI_Recv(&phArray, phSize, MPI_DOUBLE, mpiRoot, MPI_PH_TAG,
-			 MPI_COMM_WOLRD, &mpiStatus);
+			 MPI_COMM_WORLD, &mpiStatus);
 		MPI_Send(&mpiRoot, 1, MPI_INT, mpiRoot, MPI_ROOT_TAG,
 			 MPI_COMM_WORLD);
 		MPI_Recv(&treeArray, treeSize, MPI_INT, mpiRoot, MPI_TREE_TAG,
 			 MPI_COMM_WORLD, &mpiStatus);
 		unpackPheromones(g, phArray);
-		unpackTree(g, treeArray, best, g->count - 1);
+		unpackTree(g, treeArray, best, g->numNodes - 1);
 	    }
 	    // need to update ranges to match new pheromones
 	    updateRanges(g);
@@ -1063,47 +1069,62 @@ void move(Graph *g, Ant *a) {
 }
 
 void packPheromones(Graph *g, double *n) {
-  Vertex *vWalk = g->first;
-  vector<Edge*>::iterator iEdge;
-  Edge *eWalk;
-  unsigned int i = 0;
-  while(vWalk != NULL) {
-    for(iEdge = vWalk->edges.begin(), i = 0;
-        iEdge < vWalk->edges.end();
-        iEdge++, i++) {
-      eWalk = *iEdge;
-      n[i] = eWalk->pLevel;
+    Vertex *vWalk = g->first;
+    vector<Edge*>::iterator iEdge;
+    Edge *eWalk;
+    unsigned int i = 0;
+    while(vWalk != NULL) {
+	for(iEdge = vWalk->edges.begin(), i = 0;
+	    iEdge < vWalk->edges.end();
+	    iEdge++, i++) {
+	    eWalk = *iEdge;
+	    if(eWalk->a == vWalk) {
+		n[i] = eWalk->pLevel;
+	    }
+	}
+	vWalk = vWalk->pNextVert;
     }
-    vWalk = vWalk->pNextVert;
-  }
 }
 
 void unpackPheromones(Graph *g, double *n) {
-  vertex *vWalk = g->first;
-  vector<Edge*>::iterator iEdge;
-  Edge *eWalk;
-  unsigned int i = 0;
-  while(vWalk != NULL) {
-    for(iEdge = vWalk->edges.begin(), i = 0;
-        iEdge < vWalk->edges.end();
-        iEdge++, i++) {
-      eWalk = *iEdge;
-      eWalk->pLevel = n[i];
+    Vertex *vWalk = g->first;
+    vector<Edge*>::iterator iEdge;
+    Edge *eWalk;
+    unsigned int i = 0;
+    while(vWalk != NULL) {
+	for(iEdge = vWalk->edges.begin(), i = 0;
+	    iEdge < vWalk->edges.end();
+	    iEdge++, i++) {
+	    eWalk = *iEdge;
+	    if(eWalk->a == vWalk) {
+		eWalk->pLevel = n[i];
+	    }
+	}
+	vWalk = vWalk->pNextVert;
     }
-    vWalk = vWalk->pNextVert;
-  }
 }
 
 void packTree(vector<Edge*>& v, int *n) {
-  vector<Edge*>::iterator iEdge;
-  unsigned int i = 0;
-  for(iEdge = v.begin(); iEdge < v.end(); iEdge++, i++)
-    n[i] = (*iEdge)->id;
+    vector<Edge*>::iterator iEdge;
+    unsigned int i = 0;
+    for(iEdge = v.begin(); iEdge < v.end(); iEdge++, i++)
+	n[i] = (*iEdge)->id;
 }
 
 void unpackTree(Graph *g, int *n, vector<Edge*>& v, int size) {
-  int i;
-  v.clear();
-  for(i = 0; i < size; i++)
-    v.push_back(g->eList[n[i]]);
+    int i;
+    v.clear();
+    for(i = 0; i < size; i++)
+	v.push_back(g->eList[n[i]]);
+}
+int mpiMinCost(double *vals, int nProcesses) {
+    int i, mindex = -1;
+    double min = std::numeric_limits<double>::infinity();
+    for(i = 0; i < nProcesses; i++) {
+	if(vals[i] < min) {
+	    min = vals[i];
+	    mindex = i;
+	}
+    }
+    return mindex;
 }

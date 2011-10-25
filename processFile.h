@@ -1,3 +1,4 @@
+/* -*- mode:c++;c-basic-offset:4; -*- */
 #include <iostream>
 #include <iomanip>
 #include <fstream>
@@ -14,18 +15,17 @@
 
 
 class processFile{
-	private:
-	double maxCost;
-	double minCost;
-	public:
-	processFile(){maxCost = 0; minCost = std::numeric_limits<double>::infinity();}
-	void processFileOld(Graph *g, ifstream &inFile);
-	void processEFile(Graph *g, ifstream &inFile);
-	void processRFile(Graph *g, ifstream &inFile);
-	void reset(){maxCost = 0; minCost = std::numeric_limits<double>::infinity();}
-	double getMax(){return maxCost;}
-	double getMin(){return minCost;}
-	
+private:
+    double maxCost;
+    double minCost;
+public:
+    processFile(){maxCost = 0; minCost = std::numeric_limits<double>::infinity();}
+    void processFileOld(Graph *g, ifstream &inFile);
+    void processEFile(Graph *g, ifstream &inFile);
+    void processRFile(Graph *g, ifstream &inFile);
+    void reset(){maxCost = 0; minCost = std::numeric_limits<double>::infinity();}
+    double getMax(){return maxCost;}
+    double getMin(){return minCost;}
 };
 
 
@@ -68,15 +68,15 @@ void processFile::processEFile(Graph *g, ifstream &inFile) {
     eCount = vCount*(vCount-1)/2;
     for(int v1 = 1; v1 <= vCount; v1++) {
     	for(int j = 1; v1 + j <= vCount; j++) {
-        	cost = g->insertEdge(v1, v1 + j);
-			if (cost > maxCost) {
-				maxCost = cost;
-			}
-			if (cost < minCost) {
-				minCost = cost;
-			}
+	    cost = g->insertEdge(v1, v1 + j);
+	    if (cost > maxCost) {
+		maxCost = cost;
+	    }
+	    if (cost < minCost) {
+		minCost = cost;
+	    }
     	}
-	}
+    }
 }
 
 void processFile::processRFile(Graph *g, ifstream &inFile) {
@@ -93,14 +93,14 @@ void processFile::processRFile(Graph *g, ifstream &inFile) {
     eCount = vCount*(vCount-1)/2;
     for(int v1 = 1; v1<= vCount; v1++) {
     	for(int j = 1; j <= vCount; j++){
-        	inFile >> cost;
-        	if(j > v1){
-        		g->insertEdge(v1, j, cost);
-				if (cost > maxCost)
-					maxCost = cost;
-				if (cost < minCost)
-					minCost = cost;
-    		}
-   		}
-   	}
+	    inFile >> cost;
+	    if(j > v1){
+		g->insertEdge(v1, j, cost);
+		if (cost > maxCost)
+		    maxCost = cost;
+		if (cost < minCost)
+		    minCost = cost;
+	    }
+	}
+    }
 } 
