@@ -1,15 +1,23 @@
 PBDMST Algorithm.
 
 Star when solved, newest on top
+- implement parallel optimization; right now, all 4 processes are doing
+  optimization independantly
+- there still appears to be a problem with how the information is being
+  passed: processes 1 to n are returning identical bestCost values and
+  node 0 is improving; is this an issue with the RNG?       
+- MPI_Gather() wasn't working because the receive count is supposed to
+  be set s.t. sendcount == recvcount, which isn't intuitive, but it's
+  no longer hanging
 - warning in processFile.h: 58, 84: eCount set but not used
-- search ?02? in pbdmst.cxx: question about how edges are being
+* search ?02? in pbdmst.cxx: question about how edges are being
   initialized
-- search ?01? in pbdmst.cxx: can NFS support concurrent reads for
+* search ?01? in pbdmst.cxx: can NFS support concurrent reads for
   initializing the graphs? currently implemented so that each process
   steps through individually
 * pass the main command line arguments; MPI requires argc and argv in
   MPI_Init()
 * change main loop to run to full duration every time so we don't have
   to worry about processes finishing out of sync
-- packPheromones() as it stands will write edges twice, one for each side
+* packPheromones() as it stands will write edges twice, one for each side
   of the edge

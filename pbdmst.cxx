@@ -134,35 +134,34 @@ int main( int argc, char *argv[]) {
     int d;
     d = atoi(argv[3]);
     processFile p;
-    // ?01?
-    //    if(mpiRank > 0)
-    //	MPI_Recv(&mpiDummyVar, 1, MPI_INT, mpiRank - 1, MPI_DUMMY_TAG,
-    //		 MPI_COMM_WORLD, &mpiStatus);
     // Open file for reading
     ifstream inFile;
     inFile.open(fileName);
     assert(inFile.is_open());
     // Process input file and get resulting graph
     Graph* g;
-    cout << "INFO: Parameters: " << endl;
-    cout << "INFO: P_UPDATE_EVAP: " << P_UPDATE_EVAP << ", P_UPDATE_ENHA: " << P_UPDATE_ENHA << ", Tabu_modifier: " << TABU_MODIFIER << endl;
-    cout << "INFO: max_cycles: " << MAX_CYCLES << ", evap_factor: " << evap_factor << ", enha_factor: " << enha_factor << endl;
-    cout << "INFO: Input file: " << fileName << ", Diameter Constraint: " << d << endl << endl;
-    cout << "INFO: MT Seed: " << seed << endl;
+    if(mpiRank == mpiRoot) {
+        cout << "INFO: Parameters: " << endl;
+        cout << "INFO: P_UPDATE_EVAP: " << P_UPDATE_EVAP << ", P_UPDATE_ENHA: "
+             << P_UPDATE_ENHA << ", Tabu_modifier: " << TABU_MODIFIER << endl;
+        cout << "INFO: max_cycles: " << MAX_CYCLES << ", evap_factor: "
+             << evap_factor << ", enha_factor: " << enha_factor << endl;
+        cout << "INFO: Input file: " << fileName << ", Diameter Constraint: "
+             << d << endl << endl;
+        cout << "INFO: MT Seed: " << seed << endl;
+    }
     if(fileType[0] == 'e') {
         //cout << "USING e file type" << endl;
         inFile >> numInst;
-        cout << "INFO: num_inst: " << numInst << endl;
-        cout << "INFO: ";
+        if(mpiRank == mpiRoot) {
+            cout << "INFO: num_inst: " << numInst << endl;
+            cout << "INFO: ";
+        }
         for(int i = 0; i < numInst; i++) {
             //cout << "Instance num: " << i+1 << endl;
             g = new Graph();
             p.processEFile(g, inFile);
 	    inFile.close();
-	    // ?01?
-	    //	    if(mpiRank < mpiSize - 1)
-	    //	MPI_Send(&mpiDummyVar, 1, MPI_INT, mpiRank + 1,
-	    //		 MPI_DUMMY_TAG, MPI_COMM_WORLD);
             instance++;
             compute(g, d, p, i);
             resetItems(g, p);
@@ -176,10 +175,6 @@ int main( int argc, char *argv[]) {
             g = new Graph();
             p.processRFile(g, inFile);
 	    inFile.close();
-	    // ?01?
-	    // if(mpiRank < mpiSize - 1)
-	    ///	MPI_Send(&mpiDummyVar, 1, MPI_INT, mpiRank + 1,
-	    //		 MPI_DUMMY_TAG, MPI_COMM_WORLD);
             compute(g, d, p, i);
             resetItems(g, p);
         }
@@ -189,14 +184,11 @@ int main( int argc, char *argv[]) {
         g = new Graph();
         p.processFileOld(g, inFile);
 	inFile.close();
-	// ?01?
-	//	if(mpiRank < mpiSize - 1)
-	//  MPI_Send(&mpiDummyVar, 1, MPI_INT, mpiRank + 1,
-	//	     MPI_DUMMY_TAG, MPI_COMM_WORLD);
         compute(g, d, p, 0);
     }
     delete[] fileName;
     delete[] fileType;
+    MPI_Finalize();
     return 0;
 }
 
@@ -204,19 +196,22 @@ void compute(Graph* g, int d, processFile p, int i) {
     maxCost = p.getMax();
     minCost = p.getMin();
     if((unsigned int) d > g->numNodes) {
-        cout << "No need to run this diameter test. Running MST will give you solution, since diameter is greater than number of nodes." << endl;
+        cout << "No need to run this diameter test. Running MST will give you "
+             << "solution, since diameter is greater than number of nodes."
+             << endl;
         exit(1);
     }
-    cout << "Instance number: " << i << endl;
+    if(mpiRank == mpiRoot)
+        cout << "Instance number: " << i << endl;
     vector<Edge*> best = AB_DBMST(g, d);
 }
 
 /*
-*
-*
-* For Each, Sort - Helper Functions
-*
-*/
+ *
+ *
+ * For Each, Sort - Helper Functions
+ *
+ */
 bool asc_cmp_plevel(Edge *a, Edge *b) {
     return (a->pLevel < b->pLevel);
 }
@@ -235,7 +230,8 @@ bool asc_hub(Hub* a, Hub* b) {
 
 void printEdge(Edge* e) {
     cout << "RESULT: ";
-    cout << e->a->data << " " << e->b->data << " " << e->weight << " " << e->pLevel << endl;
+    cout << e->a->data << " " << e->b->data << " " << e->weight << " "
+         << e->pLevel << endl;
 }
 
 void resetItems(Graph* g, processFile p) {
@@ -246,8 +242,7 @@ void resetItems(Graph* g, processFile p) {
 }
 
 vector<Edge*> AB_DBMST(Graph *g, int d) {
-    // Local Declerations
-    cerr << "I got into ABDBMST." << endl;
+    // Local Declarations
     double bestCost = std::numeric_limits<double>::infinity();
     double treeCost = 0;
     bool newBest = false;
@@ -260,10 +255,23 @@ vector<Edge*> AB_DBMST(Graph *g, int d) {
     vector<Ant*> ants;
     vector<Edge*>::iterator e, ed, iedge1;
     vector<Range> *temp;
+
+    // MPI declarations
+    double *phArray;
+    int *treeArray;
     double *mpiBest;
+    // allocate phArray
+    int phSize = g->numNodes * (g->numNodes - 1) / 2;
+    phArray = new (std::nothrow) double[phSize];
+    assert(phArray != NULL);
+    // allocate treeArray
+    int treeSize = g->numNodes - 1;
+    treeArray = new (std::nothrow) int[treeSize];
+    assert(treeArray != NULL);
+    // allocate mpiBest
     mpiBest = new (std::nothrow) double[mpiSize];
     assert(mpiBest != NULL);
-
+    
     // Clear ranges
     vert_ranges.clear();
     
@@ -280,18 +288,13 @@ vector<Edge*> AB_DBMST(Graph *g, int d) {
         ants.push_back(a);
         // Create a range for this vertex
         temp = new vector<Range>();
-	/*
-	  ?2? if this is happening for every vertex, doesn't that mean
-	  that the edges are getting set twice? (once for a-b, once for
-	  b-a) could ranges just be put into the graph and initialized
-	  when the graph is created?
-	*/
         // Initialize pheremone level of each edge, and set pUdatesNeeded to zero
         for ( e = vertWalkPtr->edges.begin() ; e < vertWalkPtr->edges.end(); e++ ) {
             edgeWalkPtr = *e;
             if (edgeWalkPtr->a == vertWalkPtr) {
                 edgeWalkPtr->pUpdatesNeeded = 0;
-                edgeWalkPtr->pLevel = (maxCost - edgeWalkPtr->weight) + ((maxCost - minCost) / 3);
+                edgeWalkPtr->pLevel = ((maxCost - edgeWalkPtr->weight)
+                                       + ((maxCost - minCost) / 3));
             }
             // Create a range for each edge.
             Range r;
@@ -310,8 +313,8 @@ vector<Edge*> AB_DBMST(Graph *g, int d) {
     }
     // changed to run full duration every time
     while (totalCycles <= 10000 /*&& cycles <= MAX_CYCLES*/) {
-        if(totalCycles % 500 == 0)
-        cerr << "CYCLE " << totalCycles << endl;
+        //        if(totalCycles % 500 == 0)
+        //            cerr << "CYCLE " << totalCycles << endl;
         // Exploration Stage
         for (int step = 1; step <= s; step++) {
             if (step == s/3 || step == (2*s)/3) {
@@ -335,7 +338,7 @@ vector<Edge*> AB_DBMST(Graph *g, int d) {
             treeCost+=edgeWalkPtr->weight;
         }
         if (treeCost < bestCost && (current.size() == g->getNumNodes() - 1)) {
-            //cerr << "FOUND NEW BEST at cycle: " << totalCycles <<endl;
+            //            cerr << "FOUND NEW BEST at cycle: " << totalCycles <<endl;
             best = current;
             bestCost = treeCost;
             newBest=true;
@@ -361,70 +364,53 @@ vector<Edge*> AB_DBMST(Graph *g, int d) {
         }
         if(totalCycles % 2500 == 0) {
 	    int i;
-	    double *phArray;
-	    int *treeArray;
-	    // allocate phArray
-	    int phSize = g->numNodes * (g->numNodes - 1) / 2;
-	    phArray = new double[phSize];
-	    // allocate treeArray
-	    int treeSize = best.size();
-	    treeArray = new int[treeSize];
 	    // retrieve costs
-        cerr << "We're about to gather." << endl;
-	    //MPI_Gather(&bestCost, 1, MPI_DOUBLE, &mpiBest, mpiSize,
-		//       MPI_DOUBLE, mpiRoot, MPI_COMM_WORLD);
-        mpiBest[0]=bestCost;
+            MPI_Gather(&bestCost, 1, MPI_DOUBLE, mpiBest, 1,
+                       MPI_DOUBLE, mpiRoot, MPI_COMM_WORLD);
 	    // root calculates new root
-        cerr << "mpibest: ";
-        for(int b = 0; b < mpiSize; b++) {
-            cerr << mpiBest[b] << ", ";
-        }
-        cerr << endl;
-        cerr << "We're about to calc new root." << endl;
-	    if(mpiRank == mpiRoot) {
-            cerr << "we are the root, rank is: " << mpiRank << endl;
-		    mpiNewRoot = mpiMinCost(mpiBest, mpiSize);
-            cerr << "we chose new root of: " << mpiNewRoot << endl;
-		    for(i = 0; i < mpiSize; i++) {
-		        if(i != mpiRank) {
-			    // ensures completion
-			    MPI_Send(&mpiNewRoot, 1, MPI_INT, i, MPI_ROOT_TAG,
-				    MPI_COMM_WORLD);
-			    MPI_Recv(&mpiDummyVar, 1, MPI_INT, i, MPI_DUMMY_TAG,
-				    MPI_COMM_WORLD, &mpiStatus);
-		        }
-		    }
-		    // old root done
-		    if(mpiRoot != mpiNewRoot)
-		        MPI_Send(&mpiDummyVar, 1, MPI_INT, mpiNewRoot,
-			        MPI_ROOT_PASS_TAG, MPI_COMM_WORLD);                       
+            if(mpiRank == mpiRoot) {
+                cerr << "mpiRoot=" << mpiRoot << endl;
+                mpiNewRoot = mpiMinCost(mpiBest, mpiSize);
+                for(i = 0; i < mpiSize; i++) {
+                    if(i != mpiRank) {
+                        // ensures completion
+                        MPI_Send(&mpiNewRoot, 1, MPI_INT, i, MPI_ROOT_TAG,
+                                 MPI_COMM_WORLD);
+                        MPI_Recv(&mpiDummyVar, 1, MPI_INT, i, MPI_DUMMY_TAG,
+                                 MPI_COMM_WORLD, &mpiStatus);
+                    }
+                }
+                // old root done
+                if(mpiRoot != mpiNewRoot)
+                    MPI_Send(&mpiDummyVar, 1, MPI_INT, mpiNewRoot,
+                             MPI_ROOT_PASS_TAG, MPI_COMM_WORLD);                       
 	    }
 	    // get new root from old
 	    else {
-		    MPI_Recv(&mpiNewRoot, 1, MPI_INT, mpiRoot, MPI_ROOT_TAG,
-			    MPI_COMM_WORLD, &mpiStatus);
-		    MPI_Send(&mpiDummyVar, 1, MPI_INT, mpiRoot, MPI_ROOT_TAG,
-	            MPI_COMM_WORLD);
-	    }
-        cerr << "Send tree and plevels." << endl;
+                MPI_Recv(&mpiNewRoot, 1, MPI_INT, mpiRoot, MPI_ROOT_TAG,
+                         MPI_COMM_WORLD, &mpiStatus);
+                MPI_Send(&mpiDummyVar, 1, MPI_INT, mpiRoot, MPI_DUMMY_TAG,
+                         MPI_COMM_WORLD);
+            }
 	    // changed to send pheromone and tree data all at once to allow
 	    // individual processes to start working sooner
 	    if(mpiRank == mpiNewRoot) {
-		    packPheromones(g, phArray);
-		    packTree(best, treeArray);
+                cerr << "mpiNewRoot=" << mpiNewRoot << endl;
+                packPheromones(g, phArray);
+                packTree(best, treeArray);
 		// forces new root to wait for old one
-		if(mpiRoot != mpiNewRoot)
-		    MPI_Recv(&mpiDummyVar, 1, MPI_INT, mpiRoot,
-			     MPI_ROOT_PASS_TAG, MPI_COMM_WORLD, &mpiStatus);
-		mpiRoot = mpiNewRoot;
+                if(mpiRoot != mpiNewRoot)
+                    MPI_Recv(&mpiDummyVar, 1, MPI_INT, mpiRoot,
+                             MPI_ROOT_PASS_TAG, MPI_COMM_WORLD, &mpiStatus);
+                mpiRoot = mpiNewRoot;
 		// send pheromone and tree info
 		for(i = 0; i < mpiSize; i++) {
 		    if(i != mpiRank) {
-			MPI_Send(&phArray, phSize, MPI_DOUBLE, i, MPI_PH_TAG,
-				 MPI_COMM_WORLD);
-			MPI_Recv(&mpiRoot, 1, MPI_INT, i, MPI_ROOT_TAG,
-				 MPI_COMM_WORLD, &mpiStatus);
-			MPI_Send(&treeArray, treeSize, MPI_INT, i, MPI_TREE_TAG,
+                        MPI_Send(phArray, phSize, MPI_DOUBLE, i, MPI_PH_TAG,
+                                 MPI_COMM_WORLD);
+                        MPI_Recv(&mpiDummyVar, 1, MPI_INT, i, MPI_DUMMY_TAG,
+                                 MPI_COMM_WORLD, &mpiStatus);
+                        MPI_Send(treeArray, treeSize, MPI_INT, i, MPI_TREE_TAG,
 				 MPI_COMM_WORLD);
 		    }
 		}
@@ -432,18 +418,19 @@ vector<Edge*> AB_DBMST(Graph *g, int d) {
 	    // get pheromones and best tree from root
 	    else {
 		mpiRoot = mpiNewRoot;
-		MPI_Recv(&phArray, phSize, MPI_DOUBLE, mpiRoot, MPI_PH_TAG,
+                MPI_Recv(phArray, phSize, MPI_DOUBLE, mpiRoot, MPI_PH_TAG,
+                         MPI_COMM_WORLD, &mpiStatus);
+                MPI_Send(&mpiDummyVar, 1, MPI_INT, mpiRoot, MPI_DUMMY_TAG,
+                         MPI_COMM_WORLD);
+		MPI_Recv(treeArray, treeSize, MPI_INT, mpiRoot, MPI_TREE_TAG,
 			 MPI_COMM_WORLD, &mpiStatus);
-		MPI_Send(&mpiRoot, 1, MPI_INT, mpiRoot, MPI_ROOT_TAG,
-			 MPI_COMM_WORLD);
-		MPI_Recv(&treeArray, treeSize, MPI_INT, mpiRoot, MPI_TREE_TAG,
-			 MPI_COMM_WORLD, &mpiStatus);
-		unpackPheromones(g, phArray);
+                unpackPheromones(g, phArray);
 		unpackTree(g, treeArray, best, g->numNodes - 1);
 	    }
 	    // need to update ranges to match new pheromones
-	    updateRanges(g);
-        } 
+            updateRanges(g);
+            MPI_Bcast(&bestCost, 1, MPI_DOUBLE, mpiRoot, MPI_COMM_WORLD);
+        }
         totalCycles++;
         cycles++;
         treeCost = 0;
@@ -510,6 +497,8 @@ vector<Edge*> AB_DBMST(Graph *g, int d) {
     treeCost = 0;
     bestCost = 0;
     delete[] mpiBest;
+    delete[] treeArray;
+    delete[] phArray;
     // Return best tree
     return best;
 }
@@ -1082,36 +1071,34 @@ void move(Graph *g, Ant *a) {
 void packPheromones(Graph *g, double *n) {
     Vertex *vWalk = g->first;
     vector<Edge*>::iterator iEdge;
-    Edge *eWalk;
-    unsigned int i = 0;
-    while(vWalk != NULL) {
-	for(iEdge = vWalk->edges.begin(), i = 0;
-	    iEdge < vWalk->edges.end();
-	    iEdge++, i++) {
-	    eWalk = *iEdge;
-	    if(eWalk->a == vWalk) {
-		n[i] = eWalk->pLevel;
-	    }
-	}
-	vWalk = vWalk->pNextVert;
+    unsigned int i = 0, j = 0;
+
+    for (i = 0; i < g->getNumNodes(); i++) {
+        for (iEdge = vWalk->edges.begin();
+             iEdge < vWalk->edges.end(); iEdge++) {
+            if ((*iEdge)->a == vWalk) {
+                n[j] = (*iEdge)->pLevel;
+                j++;
+            }
+        }
+        vWalk = vWalk->pNextVert;
     }
 }
 
 void unpackPheromones(Graph *g, double *n) {
     Vertex *vWalk = g->first;
     vector<Edge*>::iterator iEdge;
-    Edge *eWalk;
-    unsigned int i = 0;
-    while(vWalk != NULL) {
-	for(iEdge = vWalk->edges.begin(), i = 0;
-	    iEdge < vWalk->edges.end();
-	    iEdge++, i++) {
-	    eWalk = *iEdge;
-	    if(eWalk->a == vWalk) {
-		eWalk->pLevel = n[i];
-	    }
-	}
-	vWalk = vWalk->pNextVert;
+    unsigned int i = 0, j = 0;
+
+    for (i = 0; i < g->getNumNodes(); i++) {
+        for (iEdge = vWalk->edges.begin();
+             iEdge < vWalk->edges.end(); iEdge++) {
+            if ((*iEdge)->a == vWalk) {
+                n[j] = (*iEdge)->pLevel;
+                j++;
+            }
+        }
+        vWalk = vWalk->pNextVert;
     }
 }
 
@@ -1128,17 +1115,16 @@ void unpackTree(Graph *g, int *n, vector<Edge*>& v, int size) {
     for(i = 0; i < size; i++)
 	v.push_back(g->eList[n[i]]);
 }
+
 int mpiMinCost(double *vals, int nProcesses) {
-    cerr << "in mpiMinCost" << endl;
-    cerr << "array size is: " << nProcesses << endl;
     int i, mindex = -1;
     double min = std::numeric_limits<double>::infinity();
     for(i = 0; i < nProcesses; i++) {
-	if(vals[i] < min) {
+        cout << "Rank: " << i << " bestCost=" << vals[i] << endl;
+        if(vals[i] < min) {
 	    min = vals[i];
 	    mindex = i;
 	}
     }
-    cerr << "returning mindex of: " << mindex << endl;
     return mindex;
 }
