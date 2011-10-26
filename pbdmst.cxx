@@ -25,7 +25,7 @@
 // Variables for proportional selection
 int32 seed = time(0), rand_pher;
 //int32 seed = 1310077132;
-
+TRandomMersenne rg(seed);
 
 #include "Graph.cxx"
 #include "Queue.h"
