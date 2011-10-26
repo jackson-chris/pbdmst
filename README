@@ -1,6 +1,13 @@
 PBDMST Algorithm.
 
 Star when solved, newest on top
+- MPI_Gather() is definitely getting values correctly; just tried adding
+  the following code in front of it and the correct values were passed:
+      if(mpiRank == 1)
+          bestCost = 10000;
+      if(mpiRank == 2)
+          bestCost = 20000;
+      et cetera for processes 1 to n
 - implement parallel optimization; right now, all 4 processes are doing
   optimization independantly
 - there still appears to be a problem with how the information is being
