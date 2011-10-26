@@ -7,9 +7,11 @@
 // Copyright 2011 Student. All rights reserved.
 //
 
-// File: bdmst.cxx
+// File: pbdmst.cxx
 // Author: Christopher Lee Jackson & Jason Jones
-// Description: This is our implementation of our ant based algorithm to aproximate the BDMST problem.
+// MPI modifications: Bradley Steinbacher & Christopher Lee Jackson
+// Description: This is our implementation of our ant based algorithm to
+//              aproximate the BDMST problem.
 
 #include <iostream>
 #include <iomanip>
@@ -23,7 +25,7 @@
 // Variables for proportional selection
 int32 seed = time(0), rand_pher;
 //int32 seed = 1310077132;
-TRandomMersenne rg(seed);
+
 
 #include "Graph.cxx"
 #include "Queue.h"
@@ -128,6 +130,8 @@ int main( int argc, char *argv[]) {
     MPI_Comm_size(MPI_COMM_WORLD, &mpiSize);
     char* fileName = new char[50];
     char* fileType = new char[2];
+    // ?RNG?
+    rg.RandomInit(time(NULL) * (mpiRank + 1));
     int numInst = 0;
     strcpy(fileName,argv[1]);
     strcpy(fileType,argv[2]);
