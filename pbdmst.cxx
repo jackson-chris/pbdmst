@@ -7,11 +7,9 @@
 // Copyright 2011 Student. All rights reserved.
 //
 
-// File: pbdmst.cxx
+// File: bdmst.cxx
 // Author: Christopher Lee Jackson & Jason Jones
-// MPI modifications: Bradley Steinbacher & Christopher Lee Jackson
-// Description: This is our implementation of our ant based algorithm to
-//              aproximate the BDMST problem.
+// Description: This is our implementation of our ant based algorithm to aproximate the BDMST problem.
 
 #include <iostream>
 #include <iomanip>
@@ -23,7 +21,7 @@
 #include "mpi.h"
 
 // Variables for proportional selection
-int32 seed = time(0), rand_pher;
+int32 seed, rand_pher;
 //int32 seed = 1310077132;
 TRandomMersenne rg(seed);
 
@@ -128,10 +126,9 @@ int main( int argc, char *argv[]) {
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &mpiRank);
     MPI_Comm_size(MPI_COMM_WORLD, &mpiSize);
+    rg.RandomInit(time(NULL) * (mpiRank + 1));
     char* fileName = new char[50];
     char* fileType = new char[2];
-    // ?RNG?
-    rg.RandomInit(time(NULL) * (mpiRank + 1));
     int numInst = 0;
     strcpy(fileName,argv[1]);
     strcpy(fileType,argv[2]);
@@ -165,7 +162,9 @@ int main( int argc, char *argv[]) {
             //cout << "Instance num: " << i+1 << endl;
             g = new Graph();
             p.processEFile(g, inFile);
-	    inFile.close();
+            if(mpiRank == mpiRoot)
+                cout << g->numNodes << endl;
+            inFile.close();
             instance++;
             compute(g, d, p, i);
             resetItems(g, p);
@@ -367,7 +366,6 @@ vector<Edge*> AB_DBMST(Graph *g, int d) {
             enha_factor *= P_UPDATE_ENHA;
         }
         if(totalCycles % 2500 == 0) {
-	    int i;
 	    // retrieve costs
             MPI_Gather(&bestCost, 1, MPI_DOUBLE, mpiBest, 1,
                        MPI_DOUBLE, mpiRoot, MPI_COMM_WORLD);
@@ -375,65 +373,23 @@ vector<Edge*> AB_DBMST(Graph *g, int d) {
             if(mpiRank == mpiRoot) {
                 cerr << "mpiRoot=" << mpiRoot << endl;
                 mpiNewRoot = mpiMinCost(mpiBest, mpiSize);
-                for(i = 0; i < mpiSize; i++) {
-                    if(i != mpiRank) {
-                        // ensures completion
-                        MPI_Send(&mpiNewRoot, 1, MPI_INT, i, MPI_ROOT_TAG,
-                                 MPI_COMM_WORLD);
-                        MPI_Recv(&mpiDummyVar, 1, MPI_INT, i, MPI_DUMMY_TAG,
-                                 MPI_COMM_WORLD, &mpiStatus);
-                    }
-                }
-                // old root done
-                if(mpiRoot != mpiNewRoot)
-                    MPI_Send(&mpiDummyVar, 1, MPI_INT, mpiNewRoot,
-                             MPI_ROOT_PASS_TAG, MPI_COMM_WORLD);                       
-	    }
-	    // get new root from old
-	    else {
-                MPI_Recv(&mpiNewRoot, 1, MPI_INT, mpiRoot, MPI_ROOT_TAG,
-                         MPI_COMM_WORLD, &mpiStatus);
-                MPI_Send(&mpiDummyVar, 1, MPI_INT, mpiRoot, MPI_DUMMY_TAG,
-                         MPI_COMM_WORLD);
             }
-	    // changed to send pheromone and tree data all at once to allow
-	    // individual processes to start working sooner
-	    if(mpiRank == mpiNewRoot) {
-                cerr << "mpiNewRoot=" << mpiNewRoot << endl;
+            MPI_Bcast(&mpiNewRoot, 1, MPI_DOUBLE, mpiRoot, MPI_COMM_WORLD);
+            mpiRoot = mpiNewRoot;
+            // new root packs pLevels and tree
+            if(mpiRank == mpiRoot) {
                 packPheromones(g, phArray);
                 packTree(best, treeArray);
-		// forces new root to wait for old one
-                if(mpiRoot != mpiNewRoot)
-                    MPI_Recv(&mpiDummyVar, 1, MPI_INT, mpiRoot,
-                             MPI_ROOT_PASS_TAG, MPI_COMM_WORLD, &mpiStatus);
-                mpiRoot = mpiNewRoot;
-		// send pheromone and tree info
-		for(i = 0; i < mpiSize; i++) {
-		    if(i != mpiRank) {
-                        MPI_Send(phArray, phSize, MPI_DOUBLE, i, MPI_PH_TAG,
-                                 MPI_COMM_WORLD);
-                        MPI_Recv(&mpiDummyVar, 1, MPI_INT, i, MPI_DUMMY_TAG,
-                                 MPI_COMM_WORLD, &mpiStatus);
-                        MPI_Send(treeArray, treeSize, MPI_INT, i, MPI_TREE_TAG,
-				 MPI_COMM_WORLD);
-		    }
-		}
-	    }
-	    // get pheromones and best tree from root
-	    else {
-		mpiRoot = mpiNewRoot;
-                MPI_Recv(phArray, phSize, MPI_DOUBLE, mpiRoot, MPI_PH_TAG,
-                         MPI_COMM_WORLD, &mpiStatus);
-                MPI_Send(&mpiDummyVar, 1, MPI_INT, mpiRoot, MPI_DUMMY_TAG,
-                         MPI_COMM_WORLD);
-		MPI_Recv(treeArray, treeSize, MPI_INT, mpiRoot, MPI_TREE_TAG,
-			 MPI_COMM_WORLD, &mpiStatus);
+            }
+            MPI_Bcast(phArray, phSize, MPI_DOUBLE, mpiRoot, MPI_COMM_WORLD);
+            MPI_Bcast(treeArray, treeSize, MPI_INT, mpiRoot, MPI_COMM_WORLD);
+            MPI_Bcast(&bestCost, 1, MPI_DOUBLE, mpiRoot, MPI_COMM_WORLD);
+            // non-root processes unpack pLevels and tree
+            if(mpiRank != mpiRoot) {
                 unpackPheromones(g, phArray);
 		unpackTree(g, treeArray, best, g->numNodes - 1);
-	    }
-	    // need to update ranges to match new pheromones
-            updateRanges(g);
-            MPI_Bcast(&bestCost, 1, MPI_DOUBLE, mpiRoot, MPI_COMM_WORLD);
+            }
+            updateRanges(g);            
         }
         totalCycles++;
         cycles++;
@@ -453,21 +409,51 @@ vector<Edge*> AB_DBMST(Graph *g, int d) {
     }
     gTest->root = bestRoot;
     gTest->oddRoot = bestOddRoot;
+    //    if(mpiRank == 0) {
     cout << "This is the list of edges BEFORE local optimization: " << endl;
+    cout << best.size() << endl;
     for_each(best.begin(), best.end(), printEdge);
     cout << "RESULT" << instance << ": Cost: " << bestCost << endl;
     cout << "RESULT: Diameter: " << gTest->testDiameter() << endl;
+        //    }
     best = opt_one_edge_v2(g, gTest, &best, d);
-    cout << "This is the list of edges AFTER local optimization v2: " << endl;
-    for_each(best.begin(), best.end(), printEdge);
-    bestCost = 0;
+    /*////////////////////////////////////
+    //////////////////////////////////////
+    treeCost = 0;
     for ( ed = best.begin(); ed < best.end(); ed++ ) {
         edgeWalkPtr = *ed;
-        bestCost+=edgeWalkPtr->weight;
+        treeCost+=edgeWalkPtr->weight;
     }
-    cout << "RESULT" << instance << ": Cost: " << bestCost << endl;
-    cout << "RESULT: Diameter: " << gTest->testDiameter() << endl;
-    
+    // retrieve costs
+    MPI_Gather(&treeCost, 1, MPI_DOUBLE, mpiBest, 1,
+               MPI_DOUBLE, mpiRoot, MPI_COMM_WORLD);
+    // root calculates new root
+    if(mpiRank == mpiRoot) {
+        cerr << "mpiRoot=" << mpiRoot << endl;
+        mpiNewRoot = mpiMinCost(mpiBest, mpiSize);
+    }
+    MPI_Bcast(&mpiNewRoot, 1, MPI_DOUBLE, mpiRoot, MPI_COMM_WORLD);
+    mpiRoot = mpiNewRoot;
+    // new root packs pLevels and tree
+    if(mpiRank == mpiRoot)
+        packTree(best, treeArray);
+    MPI_Bcast(treeArray, treeSize, MPI_INT, mpiRoot, MPI_COMM_WORLD);
+    // non-root processes unpack pLevels and tree
+    if(mpiRank != mpiRoot)
+        unpackTree(g, treeArray, best, g->numNodes - 1);
+    //////////////////////////////////////
+    /////////////////////////////////////*/
+    //    if(mpiRank == 0) {
+        cout << "This is the list of edges AFTER local optimization v2: " << endl;
+        for_each(best.begin(), best.end(), printEdge);
+        bestCost = 0;
+        for ( ed = best.begin(); ed < best.end(); ed++ ) {
+            edgeWalkPtr = *ed;
+            bestCost+=edgeWalkPtr->weight;
+        }
+        cout << "RESULT" << instance << ": Cost: " << bestCost << endl;
+        cout << "RESULT: Diameter: " << gTest->testDiameter() << endl;
+        //    }
     // RUN OTHER LOC OPT
     Graph* gTest2 = new Graph();
     // add all vertices
@@ -484,15 +470,38 @@ vector<Edge*> AB_DBMST(Graph *g, int d) {
     gTest2->root = bestRoot;
     gTest2->oddRoot = bestOddRoot;
     best = opt_one_edge_v1(g, gTest2, &best, best.size(), d);
-    cout << "This is the list of edges AFTER local optimization v1: " << endl;
-    for_each(best.begin(), best.end(), printEdge);
-    bestCost = 0;
-    for ( ed = best.begin(); ed < best.end(); ed++ ) {
-        edgeWalkPtr = *ed;
-        bestCost+=edgeWalkPtr->weight;
+    /*/////////////////////////////////////
+    //////////////////////////////////////
+    // retrieve costs
+    MPI_Gather(&treeCost, 1, MPI_DOUBLE, mpiBest, 1,
+               MPI_DOUBLE, mpiRoot, MPI_COMM_WORLD);
+    // root calculates new root
+    if(mpiRank == mpiRoot) {
+        cerr << "mpiRoot=" << mpiRoot << endl;
+        mpiNewRoot = mpiMinCost(mpiBest, mpiSize);
     }
-    cout << "RESULT" << instance << ": Cost: " << bestCost << endl;
-    cout << "RESULT: Diameter: " << gTest->testDiameter() << endl;
+    MPI_Bcast(&mpiNewRoot, 1, MPI_DOUBLE, mpiRoot, MPI_COMM_WORLD);
+    mpiRoot = mpiNewRoot;
+    // new root packs pLevels and tree
+    if(mpiRank == mpiRoot)
+        packTree(best, treeArray);
+    MPI_Bcast(treeArray, treeSize, MPI_INT, mpiRoot, MPI_COMM_WORLD);
+    // non-root processes unpack pLevels and tree
+    if(mpiRank != mpiRoot)
+        unpackTree(g, treeArray, best, g->numNodes - 1);
+    //////////////////////////////////////
+    /////////////////////////////////////*/
+    //    if(mpiRank == mpiRoot) {
+        cout << "This is the list of edges AFTER local optimization v1: " << endl;
+        for_each(best.begin(), best.end(), printEdge);
+        bestCost = 0;
+        for ( ed = best.begin(); ed < best.end(); ed++ ) {
+            edgeWalkPtr = *ed;
+            bestCost+=edgeWalkPtr->weight;
+        }
+        cout << "RESULT" << instance << ": Cost: " << bestCost << endl;
+        cout << "RESULT: Diameter: " << gTest->testDiameter() << endl;
+        //    }
     // Reset items
     ants.clear();
     cycles = 1;
