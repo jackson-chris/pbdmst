@@ -974,3 +974,58 @@ void move(Graph *g, Ant *a) {
         }
     }
 }
+
+void packPheromones(Graph *g, double *n) {
+    Vertex *vWalk = g->first;
+    vector<Edge*>::iterator iEdge;
+    unsigned int i = 0, j = 0;
+
+    for (i = 0; i < g->getNumNodes(); i++) {
+        for (iEdge = vWalk->edges.begin(); iEdge < vWalk->edges.end(); iEdge++) {
+            if ((*iEdge)->a == vWalk)
+                n[j++] = (*iEdge)->pLevel;
+        }
+        vWalk = vWalk->pNextVert;
+    }
+}
+
+void unpackPheromones(Graph *g, double *n) {
+    Vertex *vWalk = g->first;
+    vector<Edge*>::iterator iEdge;
+    unsigned int i = 0, j = 0;
+
+    for (i = 0; i < g->getNumNodes(); i++) {
+        for (iEdge = vWalk->edges.begin(); iEdge < vWalk->edges.end(); iEdge++) {
+            if ((*iEdge)->a == vWalk)
+                (*iEdge)->pLevel = n[j++];
+        }
+        vWalk = vWalk->pNextVert;
+    }
+}
+
+void packTree(vector<Edge*>& v, int *n) {
+    vector<Edge*>::iterator iEdge;
+    unsigned int i = 0;
+    for(iEdge = v.begin(); iEdge < v.end(); iEdge++, i++)
+        n[i] = (*iEdge)->id;
+}
+
+void unpackTree(Graph *g, int *n, vector<Edge*>& v, int size) {
+    v.clear();
+    for(int i = 0; i < size; i++)
+        v.push_back(g->eList[n[i]]);
+}
+
+int mpiMinCost(double *vals, int nProcesses) {
+    int mindex = -1;
+    double min = std::numeric_limits<double>::infinity();
+    for(int i = 0; i < nProcesses; i++) {
+        cout << "Rank: " << i << " bestCost=" << vals[i] << endl;
+        if(vals[i] < min) {
+	        min = vals[i];
+	        mindex = i;
+	    }
+    }
+    return mindex;
+}
+
