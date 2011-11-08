@@ -317,6 +317,7 @@ vector<Edge*> AB_DBMST(Graph *g, int d) {
     //  RUN FIRST LOCAL OPT
     
     Graph* gTest = new Graph();
+    gTest->prepGraph(g->numNodes);
     //  add all vertices
     Vertex* pVert = g->getFirst();
     while(pVert) {
@@ -347,6 +348,7 @@ vector<Edge*> AB_DBMST(Graph *g, int d) {
     
     // RUN OTHER LOC OPT
     Graph* gTest2 = new Graph();
+    gTest2->prepGraph(g->numNodes);
     //  add all vertices
     pVert = gTest->getFirst();
     while(pVert) {
@@ -606,7 +608,7 @@ vector<Edge*> opt_one_edge_v1(Graph* g, Graph* gOpt, vector<Edge*> *tree, unsign
             //  select a random edge, if its weight is less than the edge we just removed use it to try and improve tree.
             value = rg.IRandom(0, numEdge - 1);
             if (v[value]->weight < edgeWalkPtr->weight && v[value]->inTree == false ) {
-                gOpt->insertEdge(v[value]->a->data, v[value]->b->data, v[value]->weight, v[value]->pLevel);
+                gOpt->insertEdgeOpt(v[value]->a->data, v[value]->b->data, v[value]->weight, v[value]->pLevel, v[value]->id);
                 diameter = gOpt->testDiameter();
                 //cout << "the diameter after the addition is: " << diameter << endl;
                 if (diameter > 0 && diameter <= d && gOpt->isConnected()) {
@@ -650,7 +652,7 @@ vector<Edge*> opt_one_edge_v1(Graph* g, Graph* gOpt, vector<Edge*> *tree, unsign
         }
         else {
             noImp++;
-            gOpt->insertEdge(edgeWalkPtr->a->data, edgeWalkPtr->b->data, edgeWalkPtr->weight, edgeWalkPtr->pLevel);
+            gOpt->insertEdgeOpt(edgeWalkPtr->a->data, edgeWalkPtr->b->data, edgeWalkPtr->weight, edgeWalkPtr->pLevel, edgeWalkPtr->id);
         }
         tries++;
     }
@@ -664,14 +666,11 @@ vector<Edge*> opt_one_edge_v1(Graph* g, Graph* gOpt, vector<Edge*> *tree, unsign
 vector<Edge*> opt_one_edge_v2(Graph* g, Graph* gOpt, vector<Edge*> *tree, int d) {
     Edge* edgeWalkPtr = NULL, *ePtr = NULL;
     vector<Edge*> newTree, possEdges;
-    int tries;
-    int bsint, i;
-    int levelRemove;
-    int levelAdd;
+    int tries, bsint, i, levelRemove, levelAdd;
     vector<Edge*>::iterator e;
     double sum;
     int value, updates;
-    Range* rWalk, *current;
+    Range *current;
     int q; 
     vector<Edge*> levelEdges;
     Vertex* vertWalkPtr;
@@ -796,12 +795,12 @@ vector<Edge*> opt_one_edge_v2(Graph* g, Graph* gOpt, vector<Edge*> *tree, int d)
             //cout << "Depth of new a " << ePtr->a->depth << "Depth of new b " << e
             if(edgeWalkPtr->weight > ePtr->weight) {
                 cout << "we improved.\n";
-                gOpt->insertEdge(ePtr->a->data, ePtr->b->data, ePtr->weight, ePtr->pLevel);
+                gOpt->insertEdgeOpt(ePtr->a->data, ePtr->b->data, ePtr->weight, ePtr->pLevel, ePtr->id);
                 updates++;
                 break;
             }
             else {
-                gOpt->insertEdge(edgeWalkPtr->a->data, edgeWalkPtr->b->data, edgeWalkPtr->weight, edgeWalkPtr->pLevel);
+                gOpt->insertEdgeOpt(edgeWalkPtr->a->data, edgeWalkPtr->b->data, edgeWalkPtr->weight, edgeWalkPtr->pLevel, edgeWalkPtr->id);
                 tries++;
                 //cout << "we failed.\n";
             }

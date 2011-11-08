@@ -66,6 +66,7 @@ Graph::Graph() {
     numNodes = 0;
     root = 0;
     height = 0;
+    eCount = 0;
     oddRoot = -1;
     first = NULL;
     vDepths = new vector<Vertex*>*[50];
@@ -77,6 +78,8 @@ Graph::~Graph() {
     for( int i =0 ; i < 50 ; i++ )
         delete vDepths[i];
     delete []vDepths;
+    delete []eList;
+    delete []nodes;
 }
 
 Vertex* Graph::getFirst() {
@@ -233,6 +236,7 @@ int Graph::insertEdge(int fromKey, int toKey, double weight, double level) {
     Vertex *vertToPtr;
     
     newPtr = new Edge;
+    newPtr->id = eCount++;
     newPtr->weight = weight;
     newPtr->pLevel = level;
     newPtr->usable = true;
@@ -264,6 +268,55 @@ int Graph::insertEdge(int fromKey, int toKey, double weight, double level) {
     //  Add edges to each adjacency list
     vertToPtr->edges.push_back(newPtr);
     vertFromPtr->edges.push_back(newPtr);
+    //  Add edge to eList
+    eList[newPtr->id] = newPtr;
+    return 1;
+}
+
+/*
+ Insert an edge between two verticies.
+ */
+int Graph::insertEdgeOpt(int fromKey, int toKey, double weight, double level, int id) {
+    Edge *newPtr;
+
+    Vertex *vertFromPtr;
+    Vertex *vertToPtr;
+    
+    newPtr = new Edge;
+    newPtr->id = id;
+    newPtr->weight = weight;
+    newPtr->pLevel = level;
+    newPtr->usable = true;
+    newPtr->inTree = false;
+    if(!newPtr) {
+        return (-1);
+    }
+    //  Find source vertex
+    vertFromPtr = first;
+    while(vertFromPtr && fromKey > (vertFromPtr->data)) {
+        vertFromPtr = vertFromPtr->pNextVert;
+    }
+    if(!vertFromPtr || fromKey != (vertFromPtr->data)) {
+        return (-2);
+    }
+    //  Find destination vertex
+    vertToPtr = first;
+    while(vertToPtr && toKey > (vertToPtr->data)) {
+        vertToPtr = vertToPtr->pNextVert;
+    }
+    if(!vertToPtr || toKey != (vertToPtr->data)) {
+        return (-3);
+    }
+    //  Found verticies. Make edge.
+    ++vertFromPtr->degree;
+    ++vertToPtr->degree;
+    newPtr->b=vertToPtr;
+    newPtr->a=vertFromPtr;
+    //  Add edges to each adjacency list
+    vertToPtr->edges.push_back(newPtr);
+    vertFromPtr->edges.push_back(newPtr);
+    //  Add edge to eList
+    eList[id] = newPtr;
     return 1;
 }
 
@@ -300,6 +353,7 @@ double Graph::insertEdge(int fromKey, int toKey) {
     weight = sqrt((((vertFromPtr->x_coord - vertToPtr->x_coord) * (vertFromPtr->x_coord - vertToPtr->x_coord)) 
         + ((vertFromPtr->y_coord - vertToPtr->y_coord) * (vertFromPtr->y_coord - vertToPtr->y_coord))));
     newPtr->weight = weight;
+    newPtr->id = eCount++;
     ++vertFromPtr->degree;
     ++vertToPtr->degree;
     newPtr->b=vertToPtr;
@@ -307,6 +361,8 @@ double Graph::insertEdge(int fromKey, int toKey) {
     //  Add edges to each adjacency list
     vertToPtr->edges.push_back(newPtr);
     vertFromPtr->edges.push_back(newPtr);
+    //  Add edge to eList
+    eList[newPtr->id] = newPtr;
     return weight;
 }
 
@@ -493,4 +549,10 @@ bool Graph::isConnected() {
         vertWalkPtr = vertWalkPtr->pNextVert;
     }
     return connected;
+}
+
+void Graph::prepGraph(int c) {
+    // This function will create the edge list array and node list array
+    eList = new Edge*[(c*(c-1))/2];
+    nodes = new Vertex*[c+1];
 }
