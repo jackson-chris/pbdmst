@@ -95,6 +95,11 @@ vector<Edge*> opt_one_edge_v1(Graph* g, Graph* gOpt, vector<Edge*> *tree, unsign
 vector<Edge*> opt_one_edge_v2(Graph* g, Graph* gOpt, vector<Edge*> *tree, int d);
 vector<Edge*> buildTree(Graph *g, int d);
 void updateRanges(Graph *g);
+int mpiMinCost(double *vals, int nProcesses);
+void packTree(vector<Edge*>& v, int *n);
+void unpackTree(Graph *g, int *n, vector<Edge*>& v, int size);
+void packPheromones(Graph *g, double *n);
+void unpackPheromones(Graph *g, double *n);
 
 int main( int argc, char *argv[]) {
     //  Process input from command line
