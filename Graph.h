@@ -68,6 +68,7 @@ class Edge {
 public:
     Vertex *a;
     Vertex *b;
+    int id;
     double pUpdatesNeeded;
     bool inTree;
     bool usable;
@@ -94,14 +95,17 @@ public:
     int root;
     int oddRoot;
     int height;
+    int eCount;
     Vertex *first;
-    Vertex* nodes[1001];
+    Edge* *eList;
+    Vertex* *nodes;
     vector<Vertex*> **vDepths;
     Graph();
     ~Graph();
     int insertVertex(int dataIn, Hub* hub = NULL);
     int deleteVertex(int dltKey);
     int insertEdge (int fromKey, int toKey, double weight, double pLevel = 0);
+    int insertEdgeOpt (int fromKey, int toKey, double weight, double pLevel, int);
     void removeEdge(int a, int b);
     double insertEdge(int fromKey, int toKey);
     int insertVertex(int dataIn, double x, double y);
@@ -115,6 +119,7 @@ public:
     Vertex* BFS_2(Vertex* pVert);
     int testDiameter();
 	bool isConnected();
+	void prepGraph(int);
 
 };
 
