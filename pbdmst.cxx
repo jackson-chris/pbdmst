@@ -79,6 +79,8 @@ int mpiRoot = 0;
 int mpiNewRoot;
 int mpiDummyVar = 0;
 int mpiMinCost(double *vals, int nProcesses);
+int iBestRoot;
+int iBestOddRoot;
 void packTree(vector<Edge*>& v, int *n);
 void unpackTree(Graph *g, int *n, vector<Edge*>& v, int size);
 void packPheromones(Graph *g, double *n);
@@ -177,7 +179,7 @@ int main( int argc, char *argv[]) {
             //cout << "Instance num: " << i+1 << endl;
             g = new Graph();
             p.processRFile(g, inFile);
-	    inFile.close();
+	        inFile.close();
             compute(g, d, p, i);
             resetItems(g, p);
         }
@@ -186,7 +188,7 @@ int main( int argc, char *argv[]) {
         //cout << "USING o file type" << endl;
         g = new Graph();
         p.processFileOld(g, inFile);
-	inFile.close();
+	    inFile.close();
         compute(g, d, p, 0);
     }
     delete[] fileName;
@@ -384,10 +386,12 @@ vector<Edge*> AB_DBMST(Graph *g, int d) {
             MPI_Bcast(phArray, phSize, MPI_DOUBLE, mpiRoot, MPI_COMM_WORLD);
             MPI_Bcast(treeArray, treeSize, MPI_INT, mpiRoot, MPI_COMM_WORLD);
             MPI_Bcast(&bestCost, 1, MPI_DOUBLE, mpiRoot, MPI_COMM_WORLD);
+            MPI_Bcast(&bestRoot, 1, MPI_INT, mpiRoot, MPI_COMM_WORLD);
+            MPI_Bcast(&bestOddRoot, 1, MPI_INT, mpiRoot, MPI_COMM_WORLD);
             // non-root processes unpack pLevels and tree
             if(mpiRank != mpiRoot) {
                 unpackPheromones(g, phArray);
-		unpackTree(g, treeArray, best, g->numNodes - 1);
+		        unpackTree(g, treeArray, best, g->numNodes - 1);
             }
             updateRanges(g);            
         }
@@ -396,6 +400,7 @@ vector<Edge*> AB_DBMST(Graph *g, int d) {
         treeCost = 0;
     }
     Graph* gTest = new Graph();
+    gTest->prepGraph(g->numNodes);
     // add all vertices
     Vertex* pVert = g->getFirst();
     while(pVert) {
@@ -405,19 +410,20 @@ vector<Edge*> AB_DBMST(Graph *g, int d) {
     // Now add edges to graph.
     for(iedge1 = best.begin(); iedge1 < best.end(); iedge1++) {
         pEdge = *iedge1;
-        gTest->insertEdge(pEdge->a->data, pEdge->b->data, pEdge->weight, pEdge->pLevel);
+        gTest->insertEdgeOpt(pEdge->a->data, pEdge->b->data, pEdge->weight, pEdge->pLevel, pEdge->id);
     }
     gTest->root = bestRoot;
     gTest->oddRoot = bestOddRoot;
-    //    if(mpiRank == 0) {
+    if(mpiRank == 0) {
     cout << "This is the list of edges BEFORE local optimization: " << endl;
     cout << best.size() << endl;
     for_each(best.begin(), best.end(), printEdge);
     cout << "RESULT" << instance << ": Cost: " << bestCost << endl;
     cout << "RESULT: Diameter: " << gTest->testDiameter() << endl;
-        //    }
+    }
+	/*
     best = opt_one_edge_v2(g, gTest, &best, d);
-    /*////////////////////////////////////
+    /////////////////////////////////////
     //////////////////////////////////////
     treeCost = 0;
     for ( ed = best.begin(); ed < best.end(); ed++ ) {
@@ -442,7 +448,7 @@ vector<Edge*> AB_DBMST(Graph *g, int d) {
     if(mpiRank != mpiRoot)
         unpackTree(g, treeArray, best, g->numNodes - 1);
     //////////////////////////////////////
-    /////////////////////////////////////*/
+    //////////////////////////////////////
     //    if(mpiRank == 0) {
         cout << "This is the list of edges AFTER local optimization v2: " << endl;
         for_each(best.begin(), best.end(), printEdge);
@@ -456,6 +462,7 @@ vector<Edge*> AB_DBMST(Graph *g, int d) {
         //    }
     // RUN OTHER LOC OPT
     Graph* gTest2 = new Graph();
+    gTest2->prepGraph(g->numNodes);
     // add all vertices
     pVert = gTest->getFirst();
     while(pVert) {
@@ -465,12 +472,12 @@ vector<Edge*> AB_DBMST(Graph *g, int d) {
     // Now add edges to graph.
     for(iedge1 = best.begin(); iedge1 < best.end(); iedge1++) {
         pEdge = *iedge1;
-        gTest2->insertEdge(pEdge->a->data, pEdge->b->data, pEdge->weight, pEdge->pLevel);
+        gTest2->insertEdgeOpt(pEdge->a->data, pEdge->b->data, pEdge->weight, pEdge->pLevel, pEdge->id);
     }
     gTest2->root = bestRoot;
     gTest2->oddRoot = bestOddRoot;
     best = opt_one_edge_v1(g, gTest2, &best, best.size(), d);
-    /*/////////////////////////////////////
+    //////////////////////////////////////
     //////////////////////////////////////
     // retrieve costs
     MPI_Gather(&treeCost, 1, MPI_DOUBLE, mpiBest, 1,
@@ -490,7 +497,7 @@ vector<Edge*> AB_DBMST(Graph *g, int d) {
     if(mpiRank != mpiRoot)
         unpackTree(g, treeArray, best, g->numNodes - 1);
     //////////////////////////////////////
-    /////////////////////////////////////*/
+    //////////////////////////////////////
     //    if(mpiRank == mpiRoot) {
         cout << "This is the list of edges AFTER local optimization v1: " << endl;
         for_each(best.begin(), best.end(), printEdge);
@@ -502,6 +509,7 @@ vector<Edge*> AB_DBMST(Graph *g, int d) {
         cout << "RESULT" << instance << ": Cost: " << bestCost << endl;
         cout << "RESULT: Diameter: " << gTest->testDiameter() << endl;
         //    }
+*/
     // Reset items
     ants.clear();
     cycles = 1;
@@ -741,7 +749,7 @@ vector<Edge*> opt_one_edge_v1(Graph* g, Graph* gOpt, vector<Edge*> *tree, unsign
             // select a random edge, if its weight is less than the edge we just removed use it to try and improve tree.
             value = rg.IRandom(0, numEdge - 1);
             if (v[value]->weight < edgeWalkPtr->weight && v[value]->inTree == false ) {
-                gOpt->insertEdge(v[value]->a->data, v[value]->b->data, v[value]->weight, v[value]->pLevel);
+                gOpt->insertEdgeOpt(v[value]->a->data, v[value]->b->data, v[value]->weight, v[value]->pLevel, v[value]->id);
                 diameter = gOpt->testDiameter();
                 //cout << "the diameter after the addition is: " << diameter << endl;
                 if (diameter > 0 && diameter <= d && gOpt->isConnected()) {
@@ -785,7 +793,7 @@ vector<Edge*> opt_one_edge_v1(Graph* g, Graph* gOpt, vector<Edge*> *tree, unsign
         }
         else {
             noImp++;
-            gOpt->insertEdge(edgeWalkPtr->a->data, edgeWalkPtr->b->data, edgeWalkPtr->weight, edgeWalkPtr->pLevel);
+            gOpt->insertEdgeOpt(edgeWalkPtr->a->data, edgeWalkPtr->b->data, edgeWalkPtr->weight, edgeWalkPtr->pLevel, edgeWalkPtr->id);
         }
         tries++;
     }
@@ -797,6 +805,7 @@ vector<Edge*> opt_one_edge_v1(Graph* g, Graph* gOpt, vector<Edge*> *tree, unsign
 }
 
 vector<Edge*> opt_one_edge_v2(Graph* g, Graph* gOpt, vector<Edge*> *tree, int d) {
+    cout << "inside opt_v2" << endl;
     Edge* edgeWalkPtr = NULL, *ePtr = NULL;
     vector<Edge*> newTree, possEdges;
     int tries;
@@ -815,6 +824,7 @@ vector<Edge*> opt_one_edge_v2(Graph* g, Graph* gOpt, vector<Edge*> *tree, int d)
     
     
     for(int l = 0; l < ONE_EDGE_OPT_BOUND; l++) {
+        cout << "outer for loop just began, l:" << l << endl; 
         levelRemove = rg.IRandom(1,((int) (gOpt->height - 1)));
         levelAdd = levelRemove;
         sum = 0.0;
@@ -856,8 +866,9 @@ vector<Edge*> opt_one_edge_v2(Graph* g, Graph* gOpt, vector<Edge*> *tree, int d)
         }
         //cout << levelEdges.size() << endl;
         while (tries < ONE_EDGE_OPT_MAX && updates < 30) {
-            // Pick an edge to remove at random favoring edges with low pheremones
-            // First we determine the ranges for each edge
+            cout << "tries: " << tries << ", updates: " << updates << endl;
+        // Pick an edge to remove at random favoring edges with low pheremones
+        // First we determine the ranges for each edge
             edgeWalkPtr = NULL;
             possEdges.clear();
             value = rg.IRandom(0,((int) (sum))); // produce a random number between 0 and highest range
@@ -867,13 +878,23 @@ vector<Edge*> opt_one_edge_v2(Graph* g, Graph* gOpt, vector<Edge*> *tree, int d)
                     edgeWalkPtr=rWalk->assocEdge;
                     edgeWalkPtr->usable = false;
                 }
+            //cout << "successfully set all ranges" << endl;
             }
-            if(!edgeWalkPtr)
+            if(!edgeWalkPtr) {
+                cout << "broke because edgeWalk was null" << endl;
                 break;
+            }
             // We now have an edge that we wish to remove.
             // Remove the edge
             
             gOpt->removeEdge(edgeWalkPtr->a->data, edgeWalkPtr->b->data);
+            cout << "removed edge, from level: " << levelRemove << endl;
+            int foo = 0;
+            for(unsigned int i = 0; i < gOpt->numNodes; i++) {
+                if(gOpt->nodes[i]->depth <= levelAdd)
+                    foo++;
+            }
+            cout << "there are " << foo << "poosible replacement edges." << endl;    
             // update tabu list
             tQueue->push(edgeWalkPtr->a->data);
             tQueue->push(edgeWalkPtr->b->data);
@@ -884,8 +905,11 @@ vector<Edge*> opt_one_edge_v2(Graph* g, Graph* gOpt, vector<Edge*> *tree, int d)
                 ePtr = *e;
                 if(gOpt->nodes[ePtr->getOtherSide(vertWalkPtr)->data]->depth <= levelAdd)
                     possEdges.push_back(ePtr);
+            //cout << "successfully got all possEdges." << endl;
             }
+            cout << ".5" << endl;
             sort(possEdges.begin(), possEdges.end(), des_cmp_cost);
+            cout << "just sorted poss Edges" << endl;
             //cout << endl;
             //for_each(possEdges.begin(), possEdges.end(), printEdge);
             //cout << endl;
@@ -896,21 +920,22 @@ vector<Edge*> opt_one_edge_v2(Graph* g, Graph* gOpt, vector<Edge*> *tree, int d)
                 possEdges.pop_back();
                 ePtr = possEdges.back();
             }
+            cout << "1" << endl;
             //cout << "Old Edge" << edgeWalkPtr->a->data << ", " << edgeWalkPtr->b->data << "\t" << edgeWalkPtr->weight << endl;
             //cout << "New Edge" << ePtr->a->data << ", " << ePtr->b->data << "\t" << ePtr->weight << endl;
             //cout << "Depth of new a " << ePtr->a->depth << "Depth of new b " << e
             if(edgeWalkPtr->weight > ePtr->weight) {
                 cout << "we improved.\n";
-                gOpt->insertEdge(ePtr->a->data, ePtr->b->data, ePtr->weight, ePtr->pLevel);
+                gOpt->insertEdgeOpt(ePtr->a->data, ePtr->b->data, ePtr->weight, ePtr->pLevel, ePtr->id);
                 updates++;
                 break;
             }
             else {
-                gOpt->insertEdge(edgeWalkPtr->a->data, edgeWalkPtr->b->data, edgeWalkPtr->weight, edgeWalkPtr->pLevel);
+                gOpt->insertEdgeOpt(edgeWalkPtr->a->data, edgeWalkPtr->b->data, edgeWalkPtr->weight, edgeWalkPtr->pLevel, edgeWalkPtr->id);
                 tries++;
-                //cout << "we failed.\n";
+                cout << "we failed.\n";
             }
-            //cout << "try number: " << tries << endl;
+           cout << "1.5" << endl;
         }
         // reset items
         for(unsigned int k = 0; k < levelEdges.size(); k++) {
@@ -919,6 +944,7 @@ vector<Edge*> opt_one_edge_v2(Graph* g, Graph* gOpt, vector<Edge*> *tree, int d)
         delete []ranges;
         levelEdges.clear();
         possEdges.clear();
+        cout << "2" << endl;
     }
     populateVector(gOpt,&newTree);
     return newTree;
@@ -1090,8 +1116,8 @@ void packPheromones(Graph *g, double *n) {
         for (iEdge = vWalk->edges.begin();
              iEdge < vWalk->edges.end(); iEdge++) {
             if ((*iEdge)->a == vWalk) {
-                n[j] = (*iEdge)->pLevel;
-                j++;
+                n[j++] = (*iEdge)->pLevel;
+ //               cout << "packed edge: " << (*iEdge)->a->data << "->" << (*iEdge)->b->data << " at spot j: " << j-1 << " with plevel: " << (*iEdge)->pLevel << endl;
             }
         }
         vWalk = vWalk->pNextVert;
@@ -1102,13 +1128,13 @@ void unpackPheromones(Graph *g, double *n) {
     Vertex *vWalk = g->first;
     vector<Edge*>::iterator iEdge;
     unsigned int i = 0, j = 0;
-
+    //cout << "UNPACKING" << endl << endl;
     for (i = 0; i < g->getNumNodes(); i++) {
         for (iEdge = vWalk->edges.begin();
              iEdge < vWalk->edges.end(); iEdge++) {
             if ((*iEdge)->a == vWalk) {
-                n[j] = (*iEdge)->pLevel;
-                j++;
+                (*iEdge)->pLevel = n[j++];
+//                cout << "unpacked edge: " << (*iEdge)->a->data << "->" << (*iEdge)->b->data << " at spot j: " << j-1 << " with plevel: " << n[j-1] << endl;
             }
         }
         vWalk = vWalk->pNextVert;
@@ -1119,14 +1145,13 @@ void packTree(vector<Edge*>& v, int *n) {
     vector<Edge*>::iterator iEdge;
     unsigned int i = 0;
     for(iEdge = v.begin(); iEdge < v.end(); iEdge++, i++)
-	n[i] = (*iEdge)->id;
+	    n[i] = (*iEdge)->id;
 }
 
 void unpackTree(Graph *g, int *n, vector<Edge*>& v, int size) {
-    int i;
     v.clear();
-    for(i = 0; i < size; i++)
-	v.push_back(g->eList[n[i]]);
+    for(int i = 0; i < size; i++)
+	    v.push_back(g->eList[n[i]]);
 }
 
 int mpiMinCost(double *vals, int nProcesses) {
@@ -1135,9 +1160,9 @@ int mpiMinCost(double *vals, int nProcesses) {
     for(i = 0; i < nProcesses; i++) {
         cout << "Rank: " << i << " bestCost=" << vals[i] << endl;
         if(vals[i] < min) {
-	    min = vals[i];
-	    mindex = i;
-	}
+	        min = vals[i];
+	        mindex = i;
+	    }
     }
     return mindex;
 }
