@@ -1,6 +1,10 @@
 PBDMST Algorithm.
 
 Star when solved, newest on top
+- The output seems to be incorrect. After local opt1 is run it prints each cost 
+  at each node. But the final print of final tree is diffrent from all those costs
+- Getting a lot of Null Pointers in local Opt 2. I'm not sure if this is due to
+  MPI changes, or a bug in my original algorithm. I will test this (clj).
 - ?RNG?: will multiplying RNG seed value by rank give sufficient distribution
   to the different processes?
 * MPI_Gather() is definitely getting values correctly; just tried adding
@@ -10,7 +14,7 @@ Star when solved, newest on top
       if(mpiRank == 2)
           bestCost = 20000;
       et cetera for processes 1 to n
-- implement parallel optimization; right now, all 4 processes are doing
+* implement parallel optimization; right now, all 4 processes are doing
   optimization independantly
 * there still appears to be a problem with how the information is being
   passed: processes 1 to n are returning identical bestCost values and
