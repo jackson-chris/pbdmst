@@ -229,16 +229,16 @@ int Graph::deleteVertex(int dltKey) {
 /*
  Insert an edge between two verticies.
  */
-int Graph::insertEdgeOpt(int fromKey, int toKey, double weight, double level, int id) {
+int Graph::insertEdgeOpt(Edge* e) {
     Edge *newPtr;
 
     Vertex *vertFromPtr;
     Vertex *vertToPtr;
     
     newPtr = new Edge;
-    newPtr->id = id;
-    newPtr->weight = weight;
-    newPtr->pLevel = level;
+    newPtr->id = e->id;
+    newPtr->weight = e->weight;
+    newPtr->pLevel = e->pLevel;
     newPtr->usable = true;
     newPtr->inTree = false;
     if(!newPtr) {
@@ -246,18 +246,18 @@ int Graph::insertEdgeOpt(int fromKey, int toKey, double weight, double level, in
     }
     //  Find source vertex
     vertFromPtr = first;
-    while(vertFromPtr && fromKey > (vertFromPtr->data)) {
+    while(vertFromPtr && e->a->data > (vertFromPtr->data)) {
         vertFromPtr = vertFromPtr->pNextVert;
     }
-    if(!vertFromPtr || fromKey != (vertFromPtr->data)) {
+    if(!vertFromPtr || e->a->data != (vertFromPtr->data)) {
         return (-2);
     }
     //  Find destination vertex
     vertToPtr = first;
-    while(vertToPtr && toKey > (vertToPtr->data)) {
+    while(vertToPtr && e->b->data > (vertToPtr->data)) {
         vertToPtr = vertToPtr->pNextVert;
     }
-    if(!vertToPtr || toKey != (vertToPtr->data)) {
+    if(!vertToPtr || e->b->data != (vertToPtr->data)) {
         return (-3);
     }
     //  Found verticies. Make edge.

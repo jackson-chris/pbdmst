@@ -68,6 +68,7 @@ class Edge {
 public:
     Vertex *a;
     Vertex *b;
+    Edge* linked;
     int id;
     double pUpdatesNeeded;
     bool inTree;
@@ -105,7 +106,7 @@ public:
     int insertVertex(int dataIn, Hub* hub = NULL);
     int deleteVertex(int dltKey);
     int insertEdge (int fromKey, int toKey, double weight, double pLevel = 0);
-    int insertEdgeOpt (int fromKey, int toKey, double weight, double pLevel, int);
+    int insertEdgeOpt (Edge* e);
     void removeEdge(int a, int b);
     double insertEdge(int fromKey, int toKey);
     int insertVertex(int dataIn, double x, double y);
